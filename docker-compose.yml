@@ -1,0 +1,84 @@
+version: '3.9'
+services:
+  service-registry:
+    image: 'openjdk:17'
+    container_name: service-registry
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: always
+    networks:
+      - cnamu
+    ports:
+      - 8761:8761
+    expose:
+      - 8761
+    environment:
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+    volumes:
+      - './service-registry-0.0.1-SNAPSHOT.jar:/register.jar'
+    command:
+      - java
+      - '-jar'
+      - register.jar
+  service-authentification:
+    image: 'openjdk:17'
+    container_name: service-authentification
+    restart: always
+    networks:
+      - cnamu
+    environment:
+      eureka.instance.hostname: service-registry
+      eureka.client.serviceUrl.defaultZone: http://service-registry:8761/eureka
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    volumes:
+      - './service-authentification-0.0.1-SNAPSHOT.jar:/authentification.jar'
+    command:
+      - java
+      - '-jar'
+      - authentification.jar
+  service-cotisation:
+    image: 'openjdk:17'
+    container_name: service-cotisation
+    restart: always
+    networks:
+      - cnamu
+    environment:
+      eureka.instance.hostname: service-registry
+      eureka.client.serviceUrl.defaultZone: http://service-registry:8761/eureka
+    depends_on:
+      - service-authentification
+    volumes:
+      - './service-cotisation-0.0.1-SNAPSHOT.jar:/cotisation.jar'
+    command:
+      - java
+      - '-jar'
+      - cotisation.jar
+  service-gateway:
+    image: 'openjdk:17'
+    container_name: service-gateway
+    restart: always
+    networks:
+      - cnamu
+    ports:
+      - 8089:8089
+    expose:
+      - 8089
+    environment:
+      eureka.instance.hostname: service-registry
+      eureka.client.serviceUrl.defaultZone: http://service-registry:8761/eureka
+    depends_on:
+      - service-authentification
+    volumes:
+      - './service-gateway-0.0.1-SNAPSHOT.jar:/gateway.jar'
+    command:
+      - java
+      - '-jar'
+      - gateway.jar
+networks:
+  cnamu:
