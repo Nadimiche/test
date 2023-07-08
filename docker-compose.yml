@@ -1,0 +1,118 @@
+version: '3.9'
+services:
+  database:
+    image: 'postgres:15'
+    container_name: database
+    expose:
+      - 5433
+    ports:
+      - '5433:5433'
+    command: '-p 5433'
+    environment:
+      POSTGRES_DB: cnamudb
+      POSTGRES_PASSWORD: adm1nbd2023
+    volumes:
+      - './postgres-data:/var/lib/postgresql/data'
+    network_mode: host
+  service-registry:
+    image: 'openjdk:17'
+    container_name: service-registry
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: always
+    ports:
+      - 8761:8761
+    expose:
+      - 8761
+    environment:
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+    volumes:
+      - './service-registry-0.0.1-SNAPSHOT.jar:/register.jar'
+    command:
+      - java
+      - '-jar'
+      - register.jar
+    network_mode: host
+  service-authentification:
+    image: 'openjdk:17'
+    container_name: service-authentification
+    restart: always
+    environment:
+      eureka.instance.hostname: service-registry
+      eureka.client.serviceUrl.defaultZone: http://service-registry:8761/eureka
+    depends_on:
+      - database
+    volumes:
+      - './service-authentification-0.0.1-SNAPSHOT.jar:/authentification.jar'
+    command:
+      - java
+      - '-jar'
+      - authentification.jar
+    network_mode: host
+  service-affiliation:
+    image: 'openjdk:17'
+    container_name: service-affiliation
+    restart: always
+    environment:
+      eureka.instance.hostname: service-registry
+      eureka.client.serviceUrl.defaultZone: http://service-registry:8761/eureka
+    depends_on:
+      - service-authentification
+    volumes:
+      - './target/service-affiliation-0.0.1-SNAPSHOT.jar:/affiliation.jar'
+    command:
+      - java
+      - '-jar'
+      - affiliation.jar
+    network_mode: host
+  service-cotisation:
+    image: 'openjdk:17'
+    container_name: service-cotisation
+    restart: always
+    environment:
+      eureka.instance.hostname: service-registry
+      eureka.client.serviceUrl.defaultZone: http://service-registry:8761/eureka
+    depends_on:
+      - service-authentification
+    volumes:
+      - './service-cotisation-0.0.1-SNAPSHOT.jar:/cotisation.jar'
+    command:
+      - java
+      - '-jar'
+      - cotisation.jar
+    network_mode: host
+  service-gateway:
+    image: 'openjdk:17'
+    container_name: service-gateway
+    restart: always
+    ports:
+      - 8089:8089
+    expose:
+      - 8089
+    environment:
+      eureka.instance.hostname: service-registry
+      eureka.client.serviceUrl.defaultZone: http://service-registry:8761/eureka
+    depends_on:
+      - service-authentification
+    volumes:
+      - './service-gateway-0.0.1-SNAPSHOT.jar:/gateway.jar'
+    command:
+      - java
+      - '-jar'
+      - gateway.jar
+    network_mode: host
+  sigramu-front:
+    image: 'nginx:alpine'
+    container_name: sigramufront
+    ports:
+      - '4200:4200'
+    expose:
+      - 4200
+    volumes:
+      - './nginx.conf:/etc/nginx/nginx.conf'
+      - './sigramufront/:/usr/share/nginx/html'
+    network_mode: host
